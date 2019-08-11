@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Hello World!</title>
+    <link rel="stylesheet" href="index.css">
+  </head>
+  <body>
+    <h1>💖 Hello World!</h1>
+    <p>Welcome to your Electron application.</p>
+    <p>Spacebrew Server Address:</p>
+    <input id='server' value='localhost'>
+    <button id='serverbtn'>update</button>
+    <select id='ddl'>
+      <option text='select a port'>
+    </select>
+    <button id='btn'>refresh</button>
+    <button id='disconnect'>disconnect</button>
+  </body>
+  <script>
+    const { ipcRenderer } = require('electron');
+    var sel = document.getElementById('ddl');
+    var btn = document.getElementById('btn');
+    btn.addEventListener('click', () => {
+      ipcRenderer.send('message', 'list');
+    });
+    var srv = document.getElementById('server');
+    var sbtn = document.getElementById('serverbtn');
+    sbtn.addEventListener('click', () => {
+      ipcRenderer.send('message', 'server:' + srv.value);
+    });
+    var dbtn = document.getElementById('disconnect');
+    dbtn.addEventListener('click', () => {
+      ipcRenderer.send('message', 'disconnect');
+      dbtn.style.dislay = 'none';
+      sel.selectedIndex = 0;
+    });
+    dbtn.style.display = 'none';
+
+    ipcRenderer.on('message', (event, arg) => {
+      console.log(arg);
+      if (arg instanceof Array){
+        console.log('ports!');
+        //list of available serial ports
+        while(sel.length > 1){
+          sel.remove(1);
+        }
+        for(port of arg){
+          var opt = new Option();
+          console.log('adding ' + port.comName);
+          opt.text = port.comName;
+          sel.add(opt);
+        }
+      }
+    });
+    sel.addEventListener('input', (e) => {
+      console.log('connecting to ' + e.target.value);
+      ipcRenderer.send('message', 'connect:' + e.target.value);
+      dbtn.style.display = '';
+    });
+    ipcRenderer.send('message', 'list');
+    ipcRenderer.send('message', 'server:' + srv.value);
+  </script>
+</html>
