@@ -1,9 +1,6 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
+const SerialClient = require('./SerialClient.js');
 const SerialPort = require('serialport');
-const Readline = require('@serialport/parser-readline');
-const Spacebrew = require('spacebrew');
-var port;
-var parser;
 var server;
 var client;
 
@@ -72,15 +69,8 @@ ipcMain.on('message', (event, arg) => {
     });
   } else if (arg.startsWith('connect:')){
     try{
-      port = new SerialPort(arg.substr(8));
-      port.on('open', () => {
-        port.flush();
-      });
-      parser = port.pipe(new Readline());
-      parser.on('data', d => {
-        mainWindow.webContents.send('message', d);
-        parseSerial(d);
-      });
+      var port = arg.substr(8);
+      client = new SerialClient(server, port);
     } catch(e){
       console.log(e);
     }
@@ -93,61 +83,6 @@ ipcMain.on('message', (event, arg) => {
   } else if (arg == 'disconnect') {
     if (client){
     	client.close();
-        client = undefined;
-        port.close();
     }
   }
 });
-
-function parseSerial(s){
-  s = s.trim();
-  console.log(s);
-  var p = s.split(':');
-  switch (p[0]){
-    case 'c':
-      //client commands
-      switch (p[1]){
-        case 'n':
-          //new client
-          console.log('creating client (' + server + ',' + p[2] + ')');
-          client = new Spacebrew.Client(server, p[2], '');
-          client.onBooleanMessage = 
-            (n, v) => {port.write([(!v || v == 'false') ? 0 : 1]);};
-          client.onStringMessage = 
-            (n, v) => {console.log('#shrug', n, v);};
-          client.onRangeMessage = 
-            (n, v) => {port.write([v/4]);};
-          break;
-        case 'c':
-          console.log('connecting client');
-          client.connect();
-          break;
-      }
-      break;
-    case 'a':
-      if (client == null){
-break;
-}
-      //add pub/sub
-      switch(p[1]){
-        case 'p':
-          console.log('adding publisher (' + p[2] + ',' + p[3] + ')');
-          client.addPublish(p[2], p[3]);
-          break;
-        case 's':
-          console.log('adding subscriber (' + p[2] + ',' + p[3] + ')');
-          client.addSubscribe(p[2], p[3]);
-          break;
-      }
-      break;
-    case 'p':
-if (client == null){
-break;
-}
-      console.log('sending (' + p[1] + ',' + p[2] + ',' + p[3] + ')');
-      client.send(p[1], p[2], p[3]);
-      break;
-    default:
-      console.log('unrecognized: ' + s);
-  }
-}

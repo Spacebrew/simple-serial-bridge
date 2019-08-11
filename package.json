@@ -1,8 +1,8 @@
 {
-  "name": "sbserialbridge",
-  "productName": "sbserialbridge",
+  "name": "spacebrew-serial-bridge",
+  "productName": "spacebrew-serial-bridge",
   "version": "1.0.0",
-  "description": "My Electron application description",
+  "description": "An Electron app that bridges between serial comm and Spacebrew",
   "main": "src/index.js",
   "scripts": {
     "start": "electron-forge start",
@@ -11,10 +11,12 @@
     "publish": "electron-forge publish",
     "lint": "echo \"No linting configured\""
   },
-  "keywords": [],
+  "keywords": [
+    "spacebrew"
+  ],
   "author": {
     "name": "Quin Kennedy",
-    "email": "quin@fb.com"
+    "email": "quinkennedy@gmail.com"
   },
   "license": "MIT",
   "config": {
@@ -45,9 +47,9 @@
     }
   },
   "dependencies": {
+    "@spacebrew/client": "git+https://github.com/spacebrew/node-spacebrew-client.git#numberSupport",
     "electron-squirrel-startup": "^1.0.0",
-    "serialport": "^7.1.5",
-    "spacebrew": "git+https://github.com/spacebrew/node-spacebrew-client.git"
+    "serialport": "^7.1.5"
   },
   "devDependencies": {
     "@electron-forge/cli": "6.0.0-beta.43",
