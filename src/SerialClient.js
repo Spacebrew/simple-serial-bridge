@@ -126,22 +126,22 @@ module.exports = class SerialClient{
 
   sbRangeMessage(name, value){
     var subIndex = this._subscribers[name + ":range"];
-    var send = value / 4;
     console.log(
       'forwarding ' + value + ' as ' + send + ' to subscriber ' + subIndex);
-    this._serialPort.write(Buffer.from([subIndex, send]));
+    this._serialPort.write(Buffer.from([subIndex, value >> 8, value & 8]));
   }
 
-  publishByte(byte, publisher){
+  publishBoolean(byte, publisher){
     var send = byte;
-    var pubType = publisher.type.toLowerCase();
-    if (pubType == 'boolean'){
-      send = Boolean(send);
-    } else if (pubType == 'range'){
-      send *= 4;
-    }
-    //console.log('publishByte',publisher.name,publisher.type, send);
+    send = Boolean(send);
     this._sbClient.send(publisher.name, publisher.type, send);
+  }
+
+  publishRange(bytes, publisher){
+    if (bytes.length >= 2){
+      var send =  bytes[0] << * + bytes[1];
+      this._sbClient.send(publisher.name, publisher.type, send);
+    }
   }
 
   prepForPublisher(){
@@ -166,12 +166,18 @@ module.exports = class SerialClient{
         //console.log('marshal');
         this.marshalString();
       } else if (this._nextPublisherIndex >= 0) {
-        //this is a published range or boolean
-        this.publishByte(
-          this._incomingBytes[0],
-          this._publishers[this._nextPublisherIndex]);
-        this._incomingBytes = this._incomingBytes.slice(1);
-        this._nextPublisherIndex = -1;
+	var publisher = this._publishers[this._nextPublisherIndex];
+	if (publisher.type.toLowercase() == 'boolean'){
+	  this.publishBoolean(this._incomingBytes[0], publisher);
+          this._incomingBytes = this._incomingBytes.slice(1);
+          this._nextPublisherIndex = -1;
+	} else if (publisher.type.toLowercase() == 'range' && this._incomingBytes.length >= 2){
+	  this.publishRange(this._incomingBytes.slice(0, 2), publisher);
+          this._incomingBytes = this._incomingBytes.slice(2);
+          this._nextPublisherIndex = -1;
+	} else {
+	  console.warn('unexpected publisher type: ' + publisher.type);
+	}
       } else {
         this._nextPublisherIndex = this._incomingBytes[0];
         this.prepForPublisher();
