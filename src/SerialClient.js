@@ -8,6 +8,7 @@ module.exports = class SerialClient{
     this._serverAddress = server;
     this._waitingForNewline = true;
     this._incomingString = '';
+    this._rangeBytes = [];
     this._incomingBytes = Buffer.alloc(0);
     this._publishers = [];
     this._subscribers = {};
@@ -126,27 +127,30 @@ module.exports = class SerialClient{
 
   sbRangeMessage(name, value){
     var subIndex = this._subscribers[name + ":range"];
+    var send = [value >> 8, value & 0b11111111];
     console.log(
       'forwarding ' + value + ' as ' + send + ' to subscriber ' + subIndex);
-    this._serialPort.write(Buffer.from([subIndex, value >> 8, value & 8]));
+    this._serialPort.write(Buffer.from([subIndex, send[0], send[1]]));
   }
 
   publishBoolean(byte, publisher){
     var send = byte;
     send = Boolean(send);
+    //console.log('[SerialClient.publishBoolean]', send);
     this._sbClient.send(publisher.name, publisher.type, send);
   }
 
   publishRange(bytes, publisher){
     if (bytes.length >= 2){
-      var send =  bytes[0] << * + bytes[1];
+      var send = ((bytes[0] << 8) + bytes[1]);
+      //console.log('[SerialClient.publishRange]', send);
       this._sbClient.send(publisher.name, publisher.type, send);
     }
   }
 
   prepForPublisher(){
     var publisher = this._publishers[this._nextPublisherIndex];
-    console.log(this._nextPublisherIndex,publisher);
+    //console.log(this._nextPublisherIndex,publisher);
     var pubType = publisher.type.toLowerCase();
     if (pubType == 'bang'){
       this._sbClient.send(publisher.name, publisher.type, '');
@@ -161,23 +165,37 @@ module.exports = class SerialClient{
   parseData(data){
     //console.log(data);
     this._incomingBytes = Buffer.concat([this._incomingBytes, data]);
+    //console.log('[SerialClient.parseData] ' + data.length + ' bytes');
     while(this._incomingBytes.length > 0){
       if (this._waitingForNewline){
         //console.log('marshal');
         this.marshalString();
       } else if (this._nextPublisherIndex >= 0) {
-	var publisher = this._publishers[this._nextPublisherIndex];
-	if (publisher.type.toLowercase() == 'boolean'){
-	  this.publishBoolean(this._incomingBytes[0], publisher);
-          this._incomingBytes = this._incomingBytes.slice(1);
-          this._nextPublisherIndex = -1;
-	} else if (publisher.type.toLowercase() == 'range' && this._incomingBytes.length >= 2){
-	  this.publishRange(this._incomingBytes.slice(0, 2), publisher);
-          this._incomingBytes = this._incomingBytes.slice(2);
-          this._nextPublisherIndex = -1;
-	} else {
-	  console.warn('unexpected publisher type: ' + publisher.type);
-	}
+      	var publisher = this._publishers[this._nextPublisherIndex];
+        var type = publisher.type.toLowerCase();
+        switch (type){
+          case 'boolean':
+            if (this._incomingBytes.length > 0){
+      	      this.publishBoolean(this._incomingBytes[0], publisher);
+              this._incomingBytes = this._incomingBytes.slice(1);
+              this._nextPublisherIndex = -1;
+            }
+            break;
+          case 'range':
+            while (this._incomingBytes.length > 0 && this._rangeBytes.length < 2){
+              this._rangeBytes.push(this._incomingBytes[0]);
+              this._incomingBytes = this._incomingBytes.slice(1);
+            }
+            if (this._rangeBytes.length == 2){
+      	      this.publishRange(this._rangeBytes, publisher);
+              this._rangeBytes = [];
+              this._nextPublisherIndex = -1;
+            }
+            break;
+          default:
+      	    console.warn('unexpected publisher type: ' + publisher.type);
+            break;
+        }
       } else {
         this._nextPublisherIndex = this._incomingBytes[0];
         this.prepForPublisher();
